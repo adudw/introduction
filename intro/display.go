@@ -2,83 +2,87 @@ package intro
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	_ "fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
+	"image/color"
 	_ "image/color"
 	"log"
 	"time"
 )
 
 const (
-	Title = "Introduction"
-	EdgeH = "     "
-	EdgeV = "   "
-	Delay = 1
-	Count = 1
+	Title       = "Xiaohan's Introduction"
+	TextDelay   = 5
+	WindowEdgeH = 400
+	WindowScale = 16 / 9.0
+	Start       = "Start"
+	End         = "End"
 )
 
 var (
-	quitChan = make(chan bool, 1)
+	WindowDefaultSize = fyne.Size{Width: WindowEdgeH * WindowScale, Height: WindowEdgeH}
+	quitEvent         = make(chan bool, 1)
+	// define button color
+	buttonColor = canvas.NewRectangle(color.NRGBA{R: 255, G: 0, B: 0, A: 255})
 )
 
 func Exec(a fyne.App) {
-
+	// read introduction
 	text, _ := Read()
-
 	// define window
 	w := a.NewWindow(Title)
-
-	// define container
-	//V := canvas.NewText(EdgeV, color.White)
-	//H := canvas.NewText(EdgeH, color.White)
-	//c := container.New(layout.NewBorderLayout(V, V, H, H))
-	c := container.New(layout.NewCenterLayout())
-
+	// get canvas
+	//c := w.Canvas()
+	// define content button
+	content := widget.NewButton(text[0], WarnMsg())
 	// define start button
-	startButton := widget.NewButton("Start", Display(a, c, widget.NewLabel(text[0]), text))
-	c.Add(startButton)
-
-	w.SetContent(c)
+	startButton := widget.NewButton(Start, Display(a, w, content, text))
+	// define container
+	//c := container.New(layout.NewStackLayout(), buttonColor, startButton)
+	// set container
+	w.SetContent(startButton)
+	// resize window
+	w.Resize(WindowDefaultSize)
 	w.CenterOnScreen()
 	w.ShowAndRun()
 }
 
-func Display(a fyne.App, c *fyne.Container, label *widget.Label, text []string) func() {
+func WarnMsg() func() {
 	return func() {
-		log.Println("display content")
-		c.RemoveAll()
-		c.Add(label)
-		go delay(text, label, c, widget.NewButton("Quit", QuitClick(a)))
+		log.Println("wait display completed")
 	}
 }
 
-func QuitClick(a fyne.App) func() {
+func Display(a fyne.App, w fyne.Window, button *widget.Button, text []string) func() {
 	return func() {
-		//log.Printf("chan %v", quitChan)
+		log.Println("start to display content")
+		w.SetContent(button)
+		go delay(a, w, button, text)
+	}
+}
+
+func delay(a fyne.App, w fyne.Window, content *widget.Button, text []string) {
+	for i := 1; i < len(text); i++ {
+		content.SetText(text[i])
+		time.Sleep(time.Second * TextDelay)
+	}
+	//// send quit event
+	//quitEvent <- true
+	//close(quitEvent)
+	log.Println("display completed")
+	quitButton := widget.NewButton(text[len(text)-1], a.Quit)
+	w.SetContent(quitButton)
+}
+
+func triggerQuit(a fyne.App, w fyne.Window, text []string) func() {
+	return func() {
 		go func() {
-			flag, ok := <-quitChan
-			log.Println(flag, ok)
-			if !ok {
-				log.Println("wait completing, can't quit.")
-			}
-			if flag {
-				a.Quit()
+			flag, ok := <-quitEvent
+			if flag || !ok {
+				quitButton := widget.NewButton(text[len(text)-1], a.Quit)
+				w.SetContent(quitButton)
 			}
 		}()
 	}
-}
-
-func delay(text []string, content *widget.Label, c *fyne.Container, object fyne.Widget) {
-	for i := 1; i < len(text); i++ {
-		content.SetText(text[i])
-		time.Sleep(time.Second * Delay)
-	}
-	// 传递可关闭信号
-	quitChan <- true
-	// 更新 object
-	//wg.Done()
-	c.RemoveAll()
-	c.Add(object)
 }
